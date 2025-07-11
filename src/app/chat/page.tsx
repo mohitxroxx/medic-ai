@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Send, Bot } from "lucide-react";
 
@@ -12,7 +12,7 @@ interface Message {
   timestamp: Date;
 }
 
-export default function ChatPage() {
+function ChatContent() {
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -133,6 +133,7 @@ export default function ChatPage() {
               }`}
             >
               {message.image && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={message.image}
                   alt="Medical report"
@@ -187,5 +188,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen bg-slate-900 text-white">Loading...</div>}>
+      <ChatContent />
+    </Suspense>
   );
 }
