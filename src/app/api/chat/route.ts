@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const token = process.env["GITHUB_TOKEN"];
-    const endpoint = "https://models.github.ai/inference";
+    const endpoint = process.env["MODEL_ENDPOINT"];
     const modelName = "openai/gpt-4o-mini";
 
     const client = new OpenAI({ baseURL: endpoint, apiKey: token });
