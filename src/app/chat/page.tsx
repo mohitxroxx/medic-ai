@@ -98,16 +98,50 @@ function ChatContent() {
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
 
-    setTimeout(() => {
-      const botMessage: Message = {
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: inputMessage }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const botMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: "bot",
+          content: data.message,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, botMessage]);
+      } else {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: "bot",
+          content: "Sorry, I encountered an error processing your report.",
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+    } catch (error) {
+      console.error("Error sending to API:", error);
+      const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "bot",
-        content: "GPTTTTTTT",
+        content: "Sorry, I encountered an error processing your report.",
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, botMessage]);
-    }, 1000);
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -126,7 +160,7 @@ function ChatContent() {
             }`}
           >
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+              className={`max-w-xs lg:max-w-lg px-4 py-3 rounded-lg ${
                 message.type === "user"
                   ? "bg-blue-600 text-white"
                   : "bg-slate-700 text-white"
@@ -140,7 +174,35 @@ function ChatContent() {
                   className="w-full h-32 object-cover rounded mb-2"
                 />
               )}
-              <p className="text-sm">{message.content}</p>
+              <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                {message.content.split('\n').map((line, index) => {
+                  if (line.startsWith('**') && line.endsWith('**')) {
+                    return (
+                      <div key={index} className="font-bold text-blue-300 mb-2 mt-3 first:mt-0">
+                        {line.replace(/\*\*/g, '')}
+                      </div>
+                    );
+                  } else if (line.trim().startsWith('•')) {
+                    const parts = line.substring(1).split(/(\*\*.*?\*\*)/g);
+                    return (
+                      <div key={index} className="ml-2 mb-1">
+                        <span className="text-blue-300">•</span>{" "}
+                        {parts.map((part, i) =>
+                          part.startsWith('**') && part.endsWith('**') ? (
+                            <strong key={i}>{part.replace(/\*\*/g, '')}</strong>
+                          ) : (
+                            <span key={i}>{part}</span>
+                          )
+                        )}
+                      </div>
+                    );
+                  } else if (line.trim()) {
+                    return <div key={index} className="mb-2">{line}</div>;
+                  } else {
+                    return <div key={index} className="mb-1"></div>;
+                  }
+                })}
+              </div>
               <p className="text-xs opacity-70 mt-1">
                 {message.timestamp.toLocaleTimeString()}
               </p>
