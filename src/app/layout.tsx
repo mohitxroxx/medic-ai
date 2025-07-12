@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,8 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Medic AI - Medical Report Analyzer",
   description: "AI-powered medical report analysis with OCR capabilities",
-  themeColor: "#0f172a",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -25,6 +28,13 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   }
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
