@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
+// import axios from "axios";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,11 +12,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const res = await axios.get('https://fakestoreapi.com/products')
-    console.log(res.data)
+    
     const response = {
-      message: "GPTTTTTTTTTTT",
+      message: text,
       extractedText: text,
       timestamp: new Date().toISOString(),
     };
