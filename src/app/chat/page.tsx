@@ -12,6 +12,68 @@ interface Message {
   timestamp: Date;
 }
 
+const SYSTEM_PROMPT = {
+  role: "system",
+  content: `
+    You are a medical assistant.  
+Your core role is to **analyze full medical reports** and **highlight only the concerning, abnormal, or attention-worthy findings**.  
+However, if the user asks a **follow-up question or general health-related query**, you are allowed to answer helpfully based on your medical knowledge or the previously shared report content.
+
+---
+
+### When Given a Full Medical Report:
+If the user provides a complete medical report and asks for analysis, ONLY show abnormal values or findings.
+
+Format strictly as:
+
+**Concerning Findings:**  
+• <Finding>: <Value> (<Status>)  
+• ...
+
+**Suggestions:**  
+• <Actionable recommendation per finding>  
+
+If all values are normal, simply return:
+
+No concerning findings. Your report looks good.
+
+
+Important Rules:
+- Never mention or summarize normal findings unless directly asked.
+- Do not attempt a full diagnosis.
+- Always provide clear, practical, and concise information.
+- Default to user safety—recommend seeing a healthcare provider for serious or unclear issues.
+
+`,
+};
+const CHAT_PROMPT = {
+  role: "system",
+  content: `
+    You are a medical assistant.  
+Your core role is to **analyze full medical reports** and **answer the user's question**.  
+
+
+### When the User Asks a Follow-Up or General Question:
+You **can and should** respond to user follow-up questions related to the report, abnormal values, or general health topics.
+
+Format strictly as:
+
+**Heading:**  
+• <Finding>: <Value> (<Status>)  
+• ...
+
+**Suggestions:**  
+• <Actionable recommendation per finding> 
+
+Important Rules:
+- Never mention or summarize normal findings unless directly asked.
+- Do not attempt a full diagnosis.
+- Always provide clear, practical, and concise information.
+- Default to user safety—recommend seeing a healthcare provider for serious or unclear issues.
+
+`,
+};
+
 function ChatContent() {
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -33,24 +95,22 @@ function ChatContent() {
 
       setMessages([userMessage]);
 
-      sendToAPI(extractedText);
+      const history = [SYSTEM_PROMPT, { role: "user", content: extractedText }];
+      sendToAPI(history);
     }
   }, [searchParams]);
 
-  const sendToAPI = async (text: string) => {
+  const sendToAPI = async (history: { role: string; content: string }[]) => {
     setIsLoading(true);
-
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ history }),
       });
-
       const data = await response.json();
-
       if (response.ok) {
         const botMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -58,7 +118,6 @@ function ChatContent() {
           content: data.message,
           timestamp: new Date(),
         };
-
         setMessages((prev) => [...prev, botMessage]);
       } else {
         const errorMessage: Message = {
@@ -67,18 +126,15 @@ function ChatContent() {
           content: "Sorry, I encountered an error processing your report.",
           timestamp: new Date(),
         };
-
         setMessages((prev) => [...prev, errorMessage]);
       }
-    } catch (error) {
-      console.error("Error sending to API:", error);
+    } catch {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "bot",
         content: "Sorry, I encountered an error processing your report.",
         timestamp: new Date(),
       };
-
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -87,61 +143,26 @@ function ChatContent() {
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
-
     const userMessage: Message = {
       id: Date.now().toString(),
       type: "user",
       content: inputMessage,
       timestamp: new Date(),
     };
-
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
 
+    const history = [
+      CHAT_PROMPT,
+      { role: "user", content: sessionStorage.getItem("extractedText") || "" },
+      ...[...messages, userMessage].map((m) => ({
+        role: m.type === "user" ? "user" : "assistant",
+        content: m.content,
+      })),
+    ];
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: inputMessage }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const botMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: "bot",
-          content: data.message,
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, botMessage]);
-      } else {
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: "bot",
-          content: "Sorry, I encountered an error processing your report.",
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
-      }
-    } catch (error) {
-      console.error("Error sending to API:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "bot",
-        content: "Sorry, I encountered an error processing your report.",
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+    console.log("prompt", history);
+    sendToAPI(history);
   };
 
   return (
@@ -175,21 +196,24 @@ function ChatContent() {
                 />
               )}
               <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                {message.content.split('\n').map((line, index) => {
-                  if (line.startsWith('**') && line.endsWith('**')) {
+                {message.content.split("\n").map((line, index) => {
+                  if (line.startsWith("**") && line.endsWith("**")) {
                     return (
-                      <div key={index} className="font-bold text-blue-300 mb-2 mt-3 first:mt-0">
-                        {line.replace(/\*\*/g, '')}
+                      <div
+                        key={index}
+                        className="font-bold text-blue-300 mb-2 mt-3 first:mt-0"
+                      >
+                        {line.replace(/\*\*/g, "")}
                       </div>
                     );
-                  } else if (line.trim().startsWith('•')) {
+                  } else if (line.trim().startsWith("•")) {
                     const parts = line.substring(1).split(/(\*\*.*?\*\*)/g);
                     return (
                       <div key={index} className="ml-2 mb-1">
                         <span className="text-blue-300">•</span>{" "}
                         {parts.map((part, i) =>
-                          part.startsWith('**') && part.endsWith('**') ? (
-                            <strong key={i}>{part.replace(/\*\*/g, '')}</strong>
+                          part.startsWith("**") && part.endsWith("**") ? (
+                            <strong key={i}>{part.replace(/\*\*/g, "")}</strong>
                           ) : (
                             <span key={i}>{part}</span>
                           )
@@ -197,7 +221,11 @@ function ChatContent() {
                       </div>
                     );
                   } else if (line.trim()) {
-                    return <div key={index} className="mb-2">{line}</div>;
+                    return (
+                      <div key={index} className="mb-2">
+                        {line}
+                      </div>
+                    );
                   } else {
                     return <div key={index} className="mb-1"></div>;
                   }
@@ -255,7 +283,13 @@ function ChatContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen bg-slate-900 text-white">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen bg-slate-900 text-white">
+          Loading...
+        </div>
+      }
+    >
       <ChatContent />
     </Suspense>
   );
